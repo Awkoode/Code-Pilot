@@ -22,7 +22,7 @@ app.use(express.json({ limit: "1mb" }));
 // Rotas da aplicação
 app.use("/api", healthRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api", projectRoutes); // <-- Registra /api/projects
+app.use("/api/projects", projectRoutes);
 app.use("/api", scannerRoutes); // <-- Registra /api/projects/:projectId/scan
 
 // 404 (SEMPRE depois de todas as rotas válidas)

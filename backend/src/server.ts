@@ -18,13 +18,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
-import scannerRoutes from "./routes/scanner.routes";
-
-// ...
-app.use("/api", scannerRoutes);
-
-import projectRoutes from "./routes/project.routes";
-
-// ...
-app.use("/api", projectRoutes);

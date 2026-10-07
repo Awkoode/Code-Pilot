@@ -4,10 +4,9 @@ import { env } from "../config/env";
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
   // Supabase pooler exige SSL
-  ssl:
-    env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false,
+  },
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,

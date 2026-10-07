@@ -1,6 +1,7 @@
 import { query, queryOne } from "../db/pool";
 import { AppError } from "../utils/AppError";
 import type { CreateProjectInput } from "../validators/project.validator";
+import type { AIAnalysisOutput } from "./ai.service";
 
 export interface ProjectRow {
   id: string;
@@ -63,4 +64,85 @@ export async function deleteProject(userId: string, projectId: string): Promise<
   }
 
   await query("delete from projects where id = $1", [projectId]);
+}
+
+import { pool } from "../db/pool";
+
+export interface AnalysisMetrics {
+  healthScore: number;
+  totalFilesCount: number;
+  totalLinesCount: number;
+  totalCodeLines: number;
+  totalCommentLines: number;
+  totalBlankLines: number;
+  avgComplexityPerFile: number;
+  fileMetrics: any[];
+}
+
+export async function saveAnalysisResult(
+  projectId: string,
+  metrics: AnalysisMetrics,
+  aiReport?: AIAnalysisOutput
+) {
+  const queryText = `
+    INSERT INTO analyses (
+      project_id,
+      score,
+      architecture_score,
+      security_score,
+      performance_score,
+      maintainability_score,
+      documentation_score,
+      ai_summary,
+      created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    RETURNING id, created_at;
+  `;
+
+  const values = [
+    projectId,
+    metrics.healthScore,
+    aiReport?.architectureScore ?? metrics.healthScore,
+    aiReport?.securityScore ?? metrics.healthScore,
+    aiReport?.performanceScore ?? metrics.healthScore,
+    aiReport?.maintainabilityScore ?? metrics.healthScore,
+    aiReport?.documentationScore ?? metrics.healthScore,
+    aiReport?.aiSummary ?? "Análise determinística efetuada pelo motor Haskell.",
+  ];
+
+  const { rows } = await pool.query(queryText, values);
+  return rows[0];
+}
+
+export async function getProjectAnalyses(userId: string, projectId: string) {
+  // Garantir que o projeto pertence ao utilizador antes de retornar o histórico
+  const projectCheck = await pool.query(
+    "SELECT id FROM projects WHERE id = $1 AND user_id = $2",
+    [projectId, userId]
+  );
+
+  if (projectCheck.rows.length === 0) {
+    throw new AppError("Projeto não encontrado", 404, "NOT_FOUND");
+  }
+
+  const queryText = `
+    SELECT 
+      id,
+      project_id,
+      score,
+      architecture_score,
+      security_score,
+      performance_score,
+      maintainability_score,
+      documentation_score,
+      ai_summary,
+      created_at
+    FROM analyses
+    WHERE project_id = $1
+    ORDER BY created_at DESC;
+  `;
+
+  const { rows } = await pool.query(queryText, [projectId]);
+  return rows;
 }

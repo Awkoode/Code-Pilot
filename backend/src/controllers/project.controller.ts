@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import * as projectService from "../services/project.service";
 import { runHaskellAnalysis } from "../services/analyzer.service";
-import { downloadAndScanRepo } from "../services/scanner.service"; // ajuste para o nome do seu serviço de scan
+import { scanRepository } from "../services/scanner.service";
+import { generateAIRefactoringReport } from "../services/ai.service";
 import { createProjectSchema } from "../validators/project.validator";
 import { AppError } from "../utils/AppError";
 
@@ -73,17 +74,54 @@ export async function analyze(req: Request, res: Response, next: NextFunction) {
     }
 
     const project = await projectService.getProjectById(req.user.sub, req.params.id);
+    const repoUrl = project.github_url || project.githubUrl;
 
-    // 1. Baixa e filtra os arquivos do repositório
-    const scannedFiles = await downloadAndScanRepo(project.githubUrl);
+    if (!repoUrl) {
+      throw new AppError("URL do GitHub não encontrada no projeto", 400, "BAD_REQUEST");
+    }
 
-    // 2. Envia os arquivos para o serviço Haskell na porta 8001
-    const analysisResults = await runHaskellAnalysis(scannedFiles);
+    // 1. Baixa e escaneia o repositório
+    const scanResult = await scanRepository(repoUrl);
+
+    // 2. Processa as métricas no motor Haskell
+    const analysisResults = await runHaskellAnalysis(scanResult.relevantFiles);
+
+    // 3. Processa análises inteligentes e sugestões via IA (10B - 15B)
+    const aiReport = await generateAIRefactoringReport(
+      scanResult.relevantFiles,
+      analysisResults
+    );
+
+    // 4. Persiste a análise completa no PostgreSQL 💾
+    const savedAnalysis = await projectService.saveAnalysisResult(
+      project.id,
+      analysisResults,
+      aiReport
+    );
 
     res.status(200).json({
-      message: "Análise determinística concluída com sucesso",
+      message: "Análise determinística e de IA concluída e salva com sucesso",
+      analysisId: savedAnalysis.id,
       metrics: analysisResults,
+      aiReport,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAnalyses(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) {
+      throw new AppError("Não autenticado", 401, "UNAUTHORIZED");
+    }
+
+    const analyses = await projectService.getProjectAnalyses(
+      req.user.sub,
+      req.params.id
+    );
+
+    res.status(200).json({ analyses });
   } catch (err) {
     next(err);
   }
