@@ -22,4 +22,8 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+export const env = {
+  PORT: Number(process.env.PORT ?? 3000),
+  CORS_ORIGIN: process.env.CORS_ORIGIN ?? "",
+  ANALYZER_URL: process.env.ANALYZER_URL ?? "",
+};
