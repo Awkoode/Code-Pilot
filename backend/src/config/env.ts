@@ -12,6 +12,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter pelo menos 32 chars"),
   JWT_EXPIRES_IN: z.string().default("7d"),
+  HASKELL_ANALYZER_URL: z.string().default("http://localhost:8001"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -23,7 +24,11 @@ if (!parsed.success) {
 }
 
 export const env = {
-  PORT: Number(process.env.PORT ?? 3000),
-  CORS_ORIGIN: process.env.CORS_ORIGIN ?? "",
-  ANALYZER_URL: process.env.ANALYZER_URL ?? "",
+  NODE_ENV: parsed.data.NODE_ENV,
+  PORT: parsed.data.PORT,
+  CORS_ORIGIN: parsed.data.CORS_ORIGIN,
+  DATABASE_URL: parsed.data.DATABASE_URL,
+  JWT_SECRET: parsed.data.JWT_SECRET,
+  JWT_EXPIRES_IN: parsed.data.JWT_EXPIRES_IN,
+  HASKELL_ANALYZER_URL: parsed.data.HASKELL_ANALYZER_URL,
 };

@@ -10,7 +10,9 @@ import type {
   User,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_URL;
+const BASE_URL =
+  import.meta.env.VITE_API_URL?.trim() ||
+  (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 export const UNAUTHORIZED_EVENT = 'codepilot:unauthorized';
 
@@ -57,6 +59,10 @@ async function request<T>(
   }
 
   let res: Response;
+
+  if (!BASE_URL) {
+    throw new ApiError(0, 'Backend não configurado para este ambiente.');
+  }
 
   try {
     res = await fetch(`${BASE_URL}${path}`, {

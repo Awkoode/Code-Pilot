@@ -78,7 +78,7 @@ export default function Landing() {
         </form>
         {health === 'offline' && (
           <p className="mt-4 text-sm text-red-400 animate-fade-in">
-            Não foi possível falar com o backend em localhost:3001. Verifique se ele está rodando.
+            Não foi possível falar com o backend. Verifique a conexão e tente novamente.
           </p>
         )}
       </section>

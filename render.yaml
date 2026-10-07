@@ -1,0 +1,41 @@
+# Render Blueprint — CodePilot
+services:
+  - type: web
+    name: codepilot-backend
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: HASKELL_ANALYZER_URL
+        value: http://codepilot-analyzer:10000
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: web
+    name: codepilot-analyzer
+    runtime: docker
+    plan: starter
+    rootDir: analyzer
+    dockerfilePath: Dockerfile
+
+  - type: web
+    name: codepilot-frontend
+    runtime: static
+    rootDir: cofrontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false

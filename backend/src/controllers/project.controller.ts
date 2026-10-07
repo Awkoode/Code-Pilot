@@ -74,7 +74,7 @@ export async function analyze(req: Request, res: Response, next: NextFunction) {
     }
 
     const project = await projectService.getProjectById(req.user.sub, req.params.id);
-    const repoUrl = project.github_url || project.githubUrl;
+    const repoUrl = project.github_url;
 
     if (!repoUrl) {
       throw new AppError("URL do GitHub não encontrada no projeto", 400, "BAD_REQUEST");

@@ -1,7 +1,8 @@
 import axios from "axios";
 import { AppError } from "../utils/AppError";
+import { env } from "../config/env";
 
-const HASKELL_ANALYZER_URL = process.env.HASKELL_ANALYZER_URL || "http://localhost:8001";
+const HASKELL_ANALYZER_URL = env.HASKELL_ANALYZER_URL;
 
 export interface FileToAnalyze {
   relativePath: string;
