@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, toApiError } from '../services/api';
 import { useApi } from '../hooks/useApi';
@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
+import { CountUp, Reveal, Tilt } from '../components/anim';
 import type { Project } from '../types';
 
 function repoNameFromUrl(url: string): string {
@@ -85,113 +86,170 @@ export default function Dashboard() {
   const projects = data?.projects ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 animate-fade-in-up">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Seus projetos</h1>
-          <p className="mt-1 text-slate-400">Cada projeto é um repositório do GitHub com seu histórico de análises.</p>
-        </div>
-        {!showForm && <Button onClick={() => setShowForm(true)}>Novo Projeto</Button>}
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+      {/* ---------------- HEADER ---------------- */}
+      <div className="flex flex-wrap items-center justify-between gap-5">
+        <Reveal from="left" duration={900}>
+          <div>
+            <h1 className="text-3xl font-bold text-text-primary sm:text-4xl">Seus projetos</h1>
+            <p className="mt-2 text-slate-400">
+              Cada projeto é um repositório do GitHub com seu histórico de análises.
+            </p>
+          </div>
+        </Reveal>
+
+        {!showForm && (
+          <Reveal from="right" delay={140} duration={900}>
+            <Button onClick={() => setShowForm(true)} size="lg" className="hover-sheen">
+              Novo Projeto
+            </Button>
+          </Reveal>
+        )}
       </div>
 
+      {/* ---------------- FORM ---------------- */}
       {showForm && (
-        <Card className="mt-8 animate-fade-in-up">
-          <h2 className="text-lg font-semibold text-white">Novo projeto</h2>
-          <form onSubmit={handleCreate} className="mt-4 grid gap-4 md:grid-cols-2">
-            <Input
-              label="URL do GitHub"
-              type="url"
-              required
-              placeholder="https://github.com/usuario/repositorio"
-              value={githubUrl}
-              onChange={(e) => {
-                setGithubUrl(e.target.value);
-                if (!name) setName(repoNameFromUrl(e.target.value));
-              }}
-              className="font-mono"
-            />
-            <Input label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
-            <div className="md:col-span-2">
-              <Input label="Descrição (opcional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-            <div className="flex gap-3 md:col-span-2">
-              <Button type="submit" loading={creating}>
-                Criar projeto
-              </Button>
-              <Button variant="ghost" onClick={closeForm} disabled={creating}>
-                Cancelar
-              </Button>
-            </div>
-          </form>
-        </Card>
+        <Reveal from="flip" distance={80} duration={1000}>
+          <Card className="depth-card edge-glow relative mt-8 overflow-visible">
+            <h2 className="text-lg font-semibold text-text-primary">Novo projeto</h2>
+            <form onSubmit={handleCreate} className="mt-5 grid gap-4 md:grid-cols-2">
+              <Input
+                label="URL do GitHub"
+                type="url"
+                required
+                placeholder="https://github.com/usuario/repositorio"
+                value={githubUrl}
+                onChange={(e) => {
+                  setGithubUrl(e.target.value);
+                  if (!name) setName(repoNameFromUrl(e.target.value));
+                }}
+                className="font-mono"
+              />
+              <Input label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
+              <div className="md:col-span-2">
+                <Input
+                  label="Descrição (opcional)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3 md:col-span-2">
+                <Button type="submit" loading={creating}>
+                  Criar projeto
+                </Button>
+                <Button variant="ghost" onClick={closeForm} disabled={creating}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </Reveal>
       )}
 
-      <div className="mt-8">
+      {/* ---------------- LISTA ---------------- */}
+      <div className="mt-9">
         {loading ? (
-          <div className="flex justify-center py-16">
+          <div className="flex justify-center py-20">
             <Spinner text="Carregando projetos..." />
           </div>
         ) : error ? (
-          <Card className="text-center">
-            <p className="text-red-400">{error.message}</p>
-            <Button variant="secondary" className="mt-4" onClick={refetch}>
-              Tentar novamente
-            </Button>
-          </Card>
-        ) : projects.length === 0 ? (
-          <Card className="py-12 text-center animate-fade-in-up">
-            <h2 className="text-lg font-semibold text-white">Nenhum projeto ainda</h2>
-            <p className="mt-1 text-slate-400">Crie seu primeiro projeto com a URL de um repositório do GitHub.</p>
-            {!showForm && (
-              <Button className="mt-5" onClick={() => setShowForm(true)}>
-                Novo Projeto
+          <Reveal from="scale" duration={800}>
+            <Card className="depth-card text-center">
+              <p className="text-red-400">{error.message}</p>
+              <Button variant="secondary" className="mt-4" onClick={refetch}>
+                Tentar novamente
               </Button>
-            )}
-          </Card>
+            </Card>
+          </Reveal>
+        ) : projects.length === 0 ? (
+          <Reveal from="flip" distance={70} duration={1000}>
+            <Card className="depth-card py-16 text-center">
+              <div className="float-y-sm mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-2xl text-accent">
+                ◫
+              </div>
+              <h2 className="mt-6 text-lg font-semibold text-text-primary">Nenhum projeto ainda</h2>
+              <p className="mt-2 text-slate-400">
+                Crie seu primeiro projeto com a URL de um repositório do GitHub.
+              </p>
+              {!showForm && (
+                <Button className="mt-6" size="lg" onClick={() => setShowForm(true)}>
+                  Novo Projeto
+                </Button>
+              )}
+            </Card>
+          </Reveal>
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((p, i) => (
-              <li key={p.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-                <Card hover className="flex h-full flex-col">
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="truncate text-lg font-semibold text-white">{p.name}</h2>
-                    <Badge tone="primary">GitHub</Badge>
-                  </div>
-                  <a
-                    href={p.github_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 truncate font-mono text-xs text-accent hover:underline"
-                  >
-                    {p.github_url}
-                  </a>
-                  {p.description && <p className="mt-3 line-clamp-2 text-sm text-slate-400">{p.description}</p>}
-                  <p className="mt-3 text-xs text-slate-500">Criado em {formatDate(p.created_at)}</p>
-                  <div className="mt-auto flex flex-wrap gap-2 pt-5">
-                    <Button size="sm" onClick={() => navigate(`/projects/${p.id}`, { state: { autoAnalyze: true } })}>
-                      Analisar
-                    </Button>
-                    <Link
-                      to={`/projects/${p.id}`}
-                      className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-slate-200 transition-all duration-300 hover:border-primary/60 hover:text-white"
+              <Reveal key={p.id} as="li" from="flip" delay={i * 110} distance={70} duration={1000}>
+                <Tilt intensity={13} lift={30} className="h-full">
+                  <article className="depth-card depth-card-hover group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface/70 p-6 backdrop-blur-sm">
+                    <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+
+                    <div className="relative flex items-start justify-between gap-2">
+                      <h2 className="truncate text-lg font-semibold text-text-primary">{p.name}</h2>
+                      <Badge tone="primary">GitHub</Badge>
+                    </div>
+
+                    <a
+                      href={p.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative mt-1.5 truncate font-mono text-xs text-accent hover:underline"
                     >
-                      Ver detalhes
-                    </Link>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      loading={deletingId === p.id}
-                      onClick={() => handleDelete(p)}
-                    >
-                      Excluir
-                    </Button>
-                  </div>
-                </Card>
-              </li>
+                      {p.github_url}
+                    </a>
+
+                    {p.description && (
+                      <p className="relative mt-3.5 line-clamp-2 text-sm text-slate-400">
+                        {p.description}
+                      </p>
+                    )}
+
+                    <p className="relative mt-4 font-mono text-xs text-slate-500">
+                      Criado em {formatDate(p.created_at)}
+                    </p>
+
+                    <div className="relative mt-auto flex flex-wrap gap-2 pt-6">
+                      <Button
+                        size="sm"
+                        onClick={() => navigate(`/projects/${p.id}`, { state: { autoAnalyze: true } })}
+                      >
+                        Analisar
+                      </Button>
+                      <Link
+                        to={`/projects/${p.id}`}
+                        className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-slate-200 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/60 hover:text-text-primary"
+                      >
+                        Ver detalhes
+                      </Link>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        loading={deletingId === p.id}
+                        onClick={() => handleDelete(p)}
+                      >
+                        Excluir
+                      </Button>
+                    </div>
+                  </article>
+                </Tilt>
+              </Reveal>
             ))}
           </ul>
         )}
       </div>
+
+      {/* ---------------- CONTAGEM ---------------- */}
+      {projects.length > 0 && !loading && (
+        <Reveal from="bottom" delay={200}>
+          <p className="mt-12 text-center font-mono text-xs uppercase tracking-[0.24em] text-slate-500">
+            <CountUp value={projects.length} /> {projects.length === 1 ? 'projeto' : 'projetos'} ·{' '}
+            <CountUp value={projects.length * 6} /> análises potenciais
+          </p>
+        </Reveal>
+      )}
     </div>
   );
 }
