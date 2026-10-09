@@ -5,6 +5,7 @@ import healthRoutes from "./routes/health.routes";
 import authRoutes from "./routes/auth.routes";
 import projectRoutes from "./routes/project.routes"; // <-- Importa as rotas de projeto
 import scannerRoutes from "./routes/scanner.routes"; // <-- Importa as rotas do scanner
+import modelRoutes from "./routes/model.routes"; // <-- Catálogo de modelos
 import { errorHandler } from "./middleware/error.middleware";
 import { env } from "./config/env";
 
@@ -21,6 +22,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // Rotas da aplicação
 app.use("/api", healthRoutes);
+app.use("/api", modelRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api", scannerRoutes); // <-- Registra /api/projects/:projectId/scan

@@ -4,7 +4,14 @@ import type {
   Analysis,
   AuthResponse,
   CreateProjectInput,
+  CriticalFile,
+  ExplainResponse,
+  FileContentResponse,
+  FilesResponse,
   HealthResponse,
+  IssuesPage,
+  IssuesSummaryResponse,
+  ModelCatalogResponse,
   Project,
   ScanResponse,
   User,
@@ -159,15 +166,64 @@ export const api = {
       method: 'DELETE',
     }),
 
-  analyzeProject: (id: string) =>
+  analyzeProject: (id: string, model?: string) =>
     request<AnalyzeResponse>(
       `/api/projects/${id}/analyze`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        body: JSON.stringify(model ? { model } : {}),
+      }
     ),
 
   listAnalyses: (id: string) =>
     request<{ analyses: Analysis[] }>(
       `/api/projects/${id}/analyses`
+    ),
+
+  models: () => request<ModelCatalogResponse>('/api/models', {}, false),
+
+  listIssues: (
+    projectId: string,
+    analysisId: string,
+    filters?: { severity?: string; category?: string; file?: string; limit?: number; offset?: number },
+  ) => {
+    const q = new URLSearchParams();
+    if (filters?.severity) q.set('severity', filters.severity);
+    if (filters?.category) q.set('category', filters.category);
+    if (filters?.file) q.set('file', filters.file);
+    if (filters?.limit) q.set('limit', String(filters.limit));
+    if (filters?.offset) q.set('offset', String(filters.offset));
+    const qs = q.toString();
+    return request<IssuesPage>(
+      `/api/projects/${projectId}/analyses/${analysisId}/issues${qs ? `?${qs}` : ''}`,
+    );
+  },
+
+  issuesSummary: (projectId: string, analysisId: string) =>
+    request<IssuesSummaryResponse>(
+      `/api/projects/${projectId}/analyses/${analysisId}/issues/summary`,
+    ),
+
+  criticalFiles: (projectId: string, analysisId: string) =>
+    request<{ criticalFiles: CriticalFile[] }>(
+      `/api/projects/${projectId}/analyses/${analysisId}/critical-files`,
+    ),
+
+  analyzedFiles: (projectId: string, analysisId: string) =>
+    request<FilesResponse>(`/api/projects/${projectId}/analyses/${analysisId}/files`),
+
+  fileContent: (projectId: string, analysisId: string, path: string) =>
+    request<FileContentResponse>(
+      `/api/projects/${projectId}/analyses/${analysisId}/file?path=${encodeURIComponent(path)}`,
+    ),
+
+  explainFindings: (projectId: string, analysisId: string, model?: string, max?: number) =>
+    request<ExplainResponse>(
+      `/api/projects/${projectId}/analyses/${analysisId}/explain`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ model, max }),
+      }
     ),
 
   scanProject: (id: string) =>

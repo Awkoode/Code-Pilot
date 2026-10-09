@@ -47,6 +47,10 @@ export interface AIReport {
   performanceScore: number;
   maintainabilityScore: number;
   documentationScore: number;
+  /** Modelo que respondeu de fato. */
+  model: string;
+  /** true quando a IA falhou e as notas vieram das métricas determinísticas. */
+  usedFallback: boolean;
 }
 
 export interface Analysis {
@@ -59,7 +63,23 @@ export interface Analysis {
   maintainability_score: number;
   documentation_score: number;
   ai_summary: string;
+  model: string;
   created_at: string;
+}
+
+export interface ModelSpec {
+  id: string;
+  label: string;
+  provider: string;
+  contextLength: number;
+  description: string;
+  badge: 'recomendado' | 'rapido' | 'alternativa';
+  sortOrder: number;
+}
+
+export interface ModelCatalogResponse {
+  defaultModel: string;
+  models: ModelSpec[];
 }
 
 export interface ScanResult {
@@ -76,6 +96,93 @@ export interface AnalyzeResponse {
   analysisId: string;
   metrics: AnalysisMetrics;
   aiReport: AIReport;
+  findings: FindingsSummary;
+}
+
+export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export interface CriticalFile {
+  path: string;
+  findings: number;
+  worstSeverity: Severity;
+  weight: number;
+  breakdown: Record<Severity, number>;
+  topRules: string[];
+}
+
+export interface RuleStat {
+  ruleId: string;
+  count: number;
+  severity: Severity;
+}
+
+export interface FindingsSummary {
+  total: number;
+  bySeverity: Record<string, number>;
+  byCategory: Record<string, number>;
+  filesAffected: number;
+  criticalFiles: CriticalFile[];
+  topRules: RuleStat[];
+}
+
+export interface Issue {
+  id: string;
+  severity: Severity;
+  category: string | null;
+  rule_id: string;
+  file: string;
+  line: number;
+  title: string;
+  description: string | null;
+  suggestion: string | null;
+  snippet: string | null;
+  ai_comment: string | null;
+}
+
+export interface IssuesPage {
+  issues: Issue[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface IssuesSummaryResponse {
+  bySeverity: Record<string, number>;
+  byCategory: Record<string, number>;
+  topRules: Array<{ rule_id: string; severity: Severity; count: number }>;
+  filesAffected: number;
+}
+
+export interface AnalyzedFile {
+  file_path: string;
+  lines_count: number;
+  findings: number;
+  worst: number | null;
+}
+
+export interface CodeLine {
+  number: number;
+  text: string;
+  findings: Issue[];
+  severity: Severity | null;
+}
+
+export interface FileContentResponse {
+  filePath: string;
+  linesCount: number;
+  totalFindings: number;
+  lines: CodeLine[];
+}
+
+export interface FilesResponse {
+  files: AnalyzedFile[];
+  pendingComments: number;
+}
+
+export interface ExplainResponse {
+  explained: number;
+  skipped: number;
+  model: string;
 }
 
 export interface ScanResponse {

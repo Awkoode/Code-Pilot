@@ -3,6 +3,8 @@ import * as projectService from "../services/project.service";
 import { runHaskellAnalysis } from "../services/analyzer.service";
 import { scanRepository } from "../services/scanner.service";
 import { generateAIRefactoringReport } from "../services/ai.service";
+import { getModel } from "../services/modelCatalog";
+import { inspectFiles, summarize } from "../services/codeInspector.service";
 import { createProjectSchema } from "../validators/project.validator";
 import { AppError } from "../utils/AppError";
 
@@ -73,6 +75,13 @@ export async function analyze(req: Request, res: Response, next: NextFunction) {
       throw new AppError("Não autenticado", 401, "UNAUTHORIZED");
     }
 
+    // Modelo validado primeiro: é uma checagem em memória, contra o catálogo.
+    // Fazer antes do getProjectById evita uma query ao banco quando o
+    // cliente mandou um id de modelo inválido.
+    const requestedModel =
+      typeof req.body?.model === "string" ? req.body.model : undefined;
+    const model = getModel(requestedModel);
+
     const project = await projectService.getProjectById(req.user.sub, req.params.id);
     const repoUrl = project.github_url;
 
@@ -86,10 +95,11 @@ export async function analyze(req: Request, res: Response, next: NextFunction) {
     // 2. Processa as métricas no motor Haskell
     const analysisResults = await runHaskellAnalysis(scanResult.relevantFiles);
 
-    // 3. Processa análises inteligentes e sugestões via IA (10B - 15B)
+    // 3. Avaliação pelo modelo escolhido
     const aiReport = await generateAIRefactoringReport(
       scanResult.relevantFiles,
-      analysisResults
+      analysisResults,
+      model.id
     );
 
     // 4. Persiste a análise completa no PostgreSQL 💾
@@ -99,11 +109,46 @@ export async function analyze(req: Request, res: Response, next: NextFunction) {
       aiReport
     );
 
+    // 5. Motor determinístico linha a linha + arquivos mais críticos
+    const findings = inspectFiles(scanResult.relevantFiles);
+    const inspector = summarize(findings);
+
+    const inserted = await projectService.saveFindings(savedAnalysis.id, findings);
+    await projectService.updateCriticalFiles(savedAnalysis.id, inspector.criticalFiles);
+
+    // Só os arquivos com achado entram no banco de conteúdo: é o que a
+    // página de código da Fase 3 precisa, e guardar o repositório inteiro
+    // seria desperdício.
+    const pathsWithFindings = new Set(findings.map((f) => f.file));
+    const stored = await projectService.storeAnalyzedFiles(
+      savedAnalysis.id,
+      scanResult.relevantFiles,
+      pathsWithFindings
+    );
+
+    console.log("[analyze] concluído:", {
+      projeto: project.id,
+      analise: savedAnalysis.id,
+      modelo: model.id,
+      achados: inserted,
+      arquivosComAchados: inspector.filesWithFindings,
+      arquivosArmazenados: stored.stored,
+      arquivosOmitidos: stored.truncated,
+    });
+
     res.status(200).json({
       message: "Análise determinística e de IA concluída e salva com sucesso",
       analysisId: savedAnalysis.id,
       metrics: analysisResults,
       aiReport,
+      findings: {
+        total: inspector.totalFindings,
+        bySeverity: inspector.bySeverity,
+        byCategory: inspector.byCategory,
+        filesAffected: inspector.filesWithFindings,
+        criticalFiles: inspector.criticalFiles,
+        topRules: inspector.topRules,
+      },
     });
   } catch (err) {
     next(err);

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, toApiError } from '../services/api';
 import { useApi } from '../hooks/useApi';
@@ -7,8 +7,17 @@ import { Badge, scoreTone } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Spinner } from '../components/ui/Spinner';
-import { CountUp, GlowScoreBar, Reveal, Tilt } from '../components/anim';
-import type { AnalyzeResponse, Analysis } from '../types';
+import {
+  CountUp,
+  CriticalFilesList,
+  FindingsOverview,
+  GlowScoreBar,
+  IssueList,
+  ModelSelector,
+  Reveal,
+  Tilt,
+} from '../components/anim';
+import type { AnalyzeResponse, Analysis, IssuesPage, Severity } from '../types';
 
 const ANALYSIS_STEPS = [
   'Baixando repositório...',
@@ -79,7 +88,28 @@ export default function ProjectDetail() {
   const [analyzing, setAnalyzing] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [issueFilter, setIssueFilter] = useState<Severity | 'all'>('all');
+  const [issuePage, setIssuePage] = useState<IssuesPage | null>(null);
   const autoStarted = useRef(false);
+
+  // Recarrega os achados quando a análise termina ou o filtro muda.
+  const loadIssues = useCallback(async () => {
+    if (!result) return;
+    try {
+      const page = await api.listIssues(id, result.analysisId, {
+        severity: issueFilter === 'all' ? undefined : issueFilter,
+        limit: 50,
+      });
+      setIssuePage(page);
+    } catch {
+      setIssuePage(null);
+    }
+  }, [id, result, issueFilter]);
+
+  useEffect(() => {
+    void loadIssues();
+  }, [loadIssues]);
 
   useEffect(() => {
     if (!analyzing) return;
@@ -94,10 +124,15 @@ export default function ProjectDetail() {
   const runAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const res = await api.analyzeProject(id);
+      const res = await api.analyzeProject(id, selectedModel || undefined);
       setResult(res);
       analyses.refetch();
-      notify('Análise concluída', 'success');
+      notify(
+        res.aiReport.usedFallback
+          ? 'Análise concluída (IA indisponível, usamos as métricas)'
+          : 'Análise concluída',
+        res.aiReport.usedFallback ? 'warning' : 'success',
+      );
     } catch (err) {
       notify(toApiError(err).message, 'error');
     } finally {
@@ -207,13 +242,34 @@ export default function ProjectDetail() {
             {p.description && <p className="mt-3 max-w-2xl text-slate-400">{p.description}</p>}
           </div>
 
-          <Button size="lg" onClick={runAnalysis} loading={analyzing} className="hover-sheen">
-            {analyzing
-              ? 'Analisando...'
-              : history.length > 0 || result
-                ? 'Analisar novamente'
-                : 'Analisar'}
-          </Button>
+          <div className="flex w-full flex-col gap-3 sm:w-72">
+            <ModelSelector
+              value={selectedModel}
+              onChange={setSelectedModel}
+              disabled={analyzing}
+            />
+            <div className="flex gap-2">
+              <Link
+                to={`/projects/${id}/code`}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-200 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/60 hover:text-white"
+              >
+                <span className="text-accent">◫</span>
+                Ver código
+              </Link>
+              <Button
+                size="lg"
+                onClick={runAnalysis}
+                loading={analyzing}
+                className="hover-sheen flex-1"
+              >
+                {analyzing
+                  ? 'Analisando...'
+                  : history.length > 0 || result
+                    ? 'Analisar novamente'
+                    : 'Analisar'}
+              </Button>
+            </div>
+          </div>
         </div>
       </Reveal>
 
@@ -345,9 +401,19 @@ export default function ProjectDetail() {
             <Reveal from="flip" delay={200} distance={70} duration={1000} className="lg:col-span-2">
               <Tilt intensity={6} lift={14} className="h-full">
                 <div className="depth-card edge-glow-subtle relative h-full overflow-visible rounded-2xl border border-primary/30 bg-surface/70 p-7 backdrop-blur-sm">
-                  <CardHeader className="flex items-center gap-3">
+                  <CardHeader className="flex flex-wrap items-center gap-3">
                     <span className="text-accent">✦</span>
                     Resumo da IA
+                    {result && (
+                      <span className="ml-auto flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                          {result.aiReport.model}
+                        </span>
+                        {result.aiReport.usedFallback && (
+                          <Badge tone="yellow">fallback determinístico</Badge>
+                        )}
+                      </span>
+                    )}
                   </CardHeader>
                   <CardContent className="relative whitespace-pre-line leading-relaxed text-slate-300">
                     {current.summary}
@@ -356,6 +422,39 @@ export default function ProjectDetail() {
               </Tilt>
             </Reveal>
           </div>
+
+          {result && (
+            <Reveal from="bottom" delay={120} duration={1000}>
+              <Card className="depth-card">
+                <CardHeader>Achados por linha</CardHeader>
+
+                <FindingsOverview
+                  total={result.findings.total}
+                  bySeverity={result.findings.bySeverity}
+                  filesAffected={result.findings.filesAffected}
+                />
+
+                {result.findings.criticalFiles.length > 0 && (
+                  <div className="mt-7">
+                    <p className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Arquivos mais críticos
+                    </p>
+                    <CriticalFilesList files={result.findings.criticalFiles} />
+                  </div>
+                )}
+
+                <div className="mt-7 border-t border-border pt-6">
+                  <IssueList
+                    issues={issuePage?.issues ?? []}
+                    total={issuePage?.total ?? result.findings.total}
+                    filter={issueFilter}
+                    onFilter={setIssueFilter}
+                    bySeverity={result.findings.bySeverity}
+                  />
+                </div>
+              </Card>
+            </Reveal>
+          )}
 
           {result && (
             <Reveal from="bottom" delay={120} duration={1000}>
@@ -519,12 +618,17 @@ export default function ProjectDetail() {
                       <span className="text-sm text-slate-400">{fmtDateTime(a.created_at)}</span>
                       <Badge tone={scoreTone(a.score)}>Score {Math.round(a.score)}</Badge>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 font-mono text-xs text-slate-300">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <ScoreChip label="Arch" value={a.architecture_score} />
                       <ScoreChip label="Sec" value={a.security_score} />
                       <ScoreChip label="Perf" value={a.performance_score} />
                       <ScoreChip label="Maint" value={a.maintainability_score} />
                       <ScoreChip label="Docs" value={a.documentation_score} />
+                      {a.model && (
+                        <span className="rounded-md bg-background px-2 py-1 font-mono text-[10px] text-slate-500">
+                          {a.model}
+                        </span>
+                      )}
                     </div>
                   </Card>
                 </Reveal>
