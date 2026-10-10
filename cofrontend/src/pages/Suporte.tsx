@@ -29,8 +29,6 @@ export default function Suporte() {
     }
   }, [texto]);
 
-  const linhas = texto.split('\n').filter((l) => l.trim().length > 0);
-
   return (
     <div className="mx-auto flex min-h-[78vh] max-w-2xl flex-col items-center px-4 py-16 sm:px-6">
       <Reveal from="top" duration={800}>
