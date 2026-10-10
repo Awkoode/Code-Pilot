@@ -1,4 +1,4 @@
-﻿import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+﻿import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from './ui/Button';
@@ -9,6 +9,7 @@ import { AnimatedBackground, PageTransition } from './anim';
 export function Layout() {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -120,6 +121,29 @@ export function Layout() {
           <span className="font-mono text-xs">Análise inteligente de repositórios GitHub</span>
         </div>
       </footer>
+
+      {/* Easter egg. Vive aqui, e não dentro da página, porque o
+          PageTransition aplica transform no Outlet e isso cria um
+          containing block: um position:fixed lá dentro deixaria de
+          se posicionar relativa à viewport. */}
+      {location.pathname === '/' && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <Link
+            to="/suporte"
+            aria-label="Suporte"
+            title="©"
+            className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface/80 text-sm text-slate-500 backdrop-blur-sm transition-all duration-500 hover:border-primary/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 rounded-full bg-primary/25 opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-100"
+            />
+            <span className="relative transition-transform duration-500 group-hover:scale-110">
+              ©
+            </span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

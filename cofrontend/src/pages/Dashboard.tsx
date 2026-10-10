@@ -1,14 +1,14 @@
-﻿import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, toApiError } from '../services/api';
+import { api, checkBackendHealth, toApiError } from '../services/api';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../components/ui/Toast';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
+import { Card, CardHeader } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
-import { CountUp, Reveal, Tilt } from '../components/anim';
+import { CountUp, Reveal, ServiceButton, Tilt } from '../components/anim';
 import type { Project } from '../types';
 
 function repoNameFromUrl(url: string): string {
@@ -85,6 +85,23 @@ export default function Dashboard() {
 
   const projects = data?.projects ?? [];
 
+  // ---- Verificação de serviços ---------------------------------------
+  const checkBackend = useCallback(async () => {
+    const started = Date.now();
+    const res = await checkBackendHealth();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return `online · ${Date.now() - started}ms`;
+  }, []);
+
+  const checkAnalyzer = useCallback(async () => {
+    const started = Date.now();
+    const ping = await api.pingAnalyzer();
+    if (!ping.ok) {
+      throw new Error(ping.error ?? (ping.status ? `HTTP ${ping.status}` : 'sem resposta'));
+    }
+    return `online · ${Date.now() - started}ms`;
+  }, []);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       {/* ---------------- HEADER ---------------- */}
@@ -107,7 +124,34 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ---------------- FORM ---------------- */}
+      {/* ---------------- SERVIÇOS ---------------- */}
+      <Reveal from="flip" distance={60} delay={200} duration={900}>
+        <Card className="depth-card mt-8">
+          <CardHeader className="flex items-center gap-2 text-base">
+            <span className="text-accent">◈</span>
+            Serviços
+          </CardHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ServiceButton
+              label="Ativar Analyzer"
+              loadingLabel="Acionando analyzer..."
+              onCheck={checkAnalyzer}
+              tone="primary"
+            />
+            <ServiceButton
+              label="Ativar Backend"
+              loadingLabel="Acionando backend..."
+              onCheck={checkBackend}
+              tone="neutral"
+            />
+          </div>
+          <p className="mt-4 text-xs leading-relaxed text-slate-500">
+            O analyzer roda em hospedagem gratuita e pode ficar dormente. O primeiro
+            botão o acorda chamando o health check; pode demorar dezenas de segundos
+            na primeira vez.
+          </p>
+        </Card>
+      </Reveal>
       {showForm && (
         <Reveal from="flip" distance={80} duration={1000}>
           <Card className="depth-card edge-glow relative mt-8 overflow-visible">

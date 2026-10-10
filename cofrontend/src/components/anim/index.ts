@@ -11,3 +11,4 @@ export {
   IssueList,
   SEVERITIES,
 } from './FindingsPanel';
+export { ServiceButton, type ServiceState } from './ServiceButton';

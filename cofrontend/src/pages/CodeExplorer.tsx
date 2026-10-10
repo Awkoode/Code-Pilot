@@ -53,6 +53,7 @@ export default function CodeExplorer() {
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [filter, setFilter] = useState<Severity | 'all'>('all');
+  const [onlyWithAI, setOnlyWithAI] = useState(false);
   const [search, setSearch] = useState('');
   const [explaining, setExplaining] = useState(false);
   const [model, setModel] = useState('');
@@ -89,23 +90,44 @@ export default function CodeExplorer() {
   const visibleLines: CodeLine[] = useMemo(() => {
     const lines = fileQuery.data?.lines ?? [];
     const term = search.trim().toLowerCase();
+
     return lines.filter((l) => {
       if (filter !== 'all' && l.severity !== filter) return false;
+      if (onlyWithAI && !l.findings.some((f) => f.ai_comment)) return false;
       if (term && !l.text.toLowerCase().includes(term)) return false;
       return true;
     });
-  }, [fileQuery.data, filter, search]);
+  }, [fileQuery.data, filter, search, onlyWithAI]);
+
+  // Quantas linhas do arquivo têm comentário da IA.
+  const aiCoverage = useMemo(() => {
+    const lines = fileQuery.data?.lines ?? [];
+    const flagged = lines.filter((l) => l.findings.length > 0);
+    const explained = flagged.filter((l) => l.findings.some((f) => f.ai_comment));
+    return {
+      total: lines.length,
+      flagged: flagged.length,
+      explained: explained.length,
+      firstExplained: explained[0]?.number ?? null,
+    };
+  }, [fileQuery.data]);
 
   // Ao trocar de filtro, um filtro de arquivo faz a lista mudar de tamanho.
   useEffect(() => {
     setSelectedLine(null);
-  }, [filter, search, selectedFile]);
+  }, [filter, search, selectedFile, onlyWithAI]);
 
   const activeFinding: Issue | null = useMemo(() => {
     if (selectedLine == null) return null;
     const line = fileQuery.data?.lines?.find((l) => l.number === selectedLine);
     return line?.findings?.[0] ?? null;
   }, [selectedLine, fileQuery.data]);
+
+  const scrollToLine = useCallback((n: number) => {
+    setSelectedLine(n);
+    const target = document.getElementById(`code-line-${n}`);
+    target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, []);
 
   const runExplain = async () => {
     if (!analysisId) return;
@@ -118,8 +140,25 @@ export default function CodeExplorer() {
           : 'Nenhum achado pendente de comentário',
         'success',
       );
+
       filesQuery.refetch();
       reloadFile();
+
+      // Mostra o resultado imediatamente: vai para a primeira linha que
+      // acabou de ser explicada.
+      if (r.explained > 0) {
+        setFilter('all');
+        setOnlyWithAI(false);
+        await new Promise((res) => setTimeout(res, 400));
+        try {
+          const page = await api.listIssues(id, analysisId, { limit: 1 });
+          if (page.issues[0]) {
+            setSelectedFile(page.issues[0].file);
+          }
+        } catch {
+          // mantém o arquivo atual se a leitura falhar
+        }
+      }
     } catch (err) {
       notify(toApiError(err).message, 'error');
     } finally {
@@ -194,10 +233,14 @@ export default function CodeExplorer() {
       )}
 
       {/* -------------------------------------------- layout principal */}
-      <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
+      {/* Altura definida: sem isso o VirtualList não recebe um limite
+          concreto e a área de rolagem do código não funciona. */}
+      <div
+        className="grid gap-5 lg:h-[calc(100vh-15rem)] lg:grid-cols-[280px_minmax(0,1fr)_340px]"
+      >
         {/* -------- lista de arquivos -------- */}
-        <Reveal from="left" delay={120} duration={800}>
-          <div className="depth-card rounded-2xl border border-border bg-surface/60 p-3">
+        <Reveal from="left" delay={120} duration={800} className="lg:min-h-0">
+          <div className="depth-card flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface/60 p-3">
             <p className="px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
               Arquivos com achados
             </p>
@@ -211,7 +254,7 @@ export default function CodeExplorer() {
                 Nenhum arquivo com achados.
               </p>
             ) : (
-              <ul className="mt-1 max-h-[70vh] space-y-0.5 overflow-y-auto">
+              <ul className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
                 {files.map((f) => {
                   const sev = severityFromWeight(f.worst);
                   const active = f.file_path === selectedFile;
@@ -250,11 +293,26 @@ export default function CodeExplorer() {
         </Reveal>
 
         {/* -------- visor de código -------- */}
-        <Reveal from="scale" delay={180} duration={800}>
-          <div className="depth-card overflow-hidden rounded-2xl border border-border bg-surface/60">
+        <Reveal from="scale" delay={180} duration={800} className="lg:min-h-0">
+          <div className="depth-card flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface/60">
             {/* barra do arquivo + filtros */}
-            <div className="border-b border-border px-4 py-3">
-              <p className="truncate font-mono text-xs text-slate-300">{selectedFile}</p>
+            <div className="shrink-0 border-b border-border px-4 py-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="truncate font-mono text-xs text-slate-300">{selectedFile}</p>
+                {fileQuery.data && (
+                  <p className="shrink-0 font-mono text-[10px] tabular-nums text-slate-500">
+                    {aiCoverage.explained > 0 ? (
+                      <span className="text-accent">
+                        IA: {aiCoverage.explained} de {aiCoverage.flagged} linhas
+                      </span>
+                    ) : (
+                      <span>
+                        {aiCoverage.flagged} de {aiCoverage.total} linhas marcadas
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <input
@@ -287,29 +345,50 @@ export default function CodeExplorer() {
                     {SEVERITY_STYLE[s].label}
                   </button>
                 ))}
+                {aiCoverage.explained > 0 && (
+                  <button
+                    onClick={() => {
+                      setOnlyWithAI((v) => !v);
+                      if (!onlyWithAI && aiCoverage.firstExplained) {
+                        scrollToLine(aiCoverage.firstExplained);
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition ${
+                      onlyWithAI
+                        ? 'border-accent/60 bg-accent/15 text-white'
+                        : 'border-border text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-accent">✦</span>
+                    com IA
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* corpo */}
+            {/* corpo rolável */}
             {fileQuery.loading ? (
-              <div className="flex h-[60vh] items-center justify-center">
+              <div className="flex min-h-0 flex-1 items-center justify-center">
                 <Spinner text="Carregando arquivo..." />
               </div>
             ) : visibleLines.length === 0 ? (
-              <div className="flex h-[60vh] items-center justify-center text-sm text-slate-500">
+              <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-slate-500">
                 {fileQuery.data ? 'Nenhuma linha com esse filtro.' : 'Selecione um arquivo.'}
               </div>
             ) : (
-              <div className="max-h-[60vh] overflow-hidden">
+              <div className="min-h-0 flex-1">
                 <VirtualList
                   items={visibleLines}
                   itemHeight={LINE_HEIGHT}
-                  overscan={15}
+                  overscan={25}
                   renderItem={(line) => (
                     <CodeRow
                       line={line}
                       active={selectedLine === line.number}
                       onSelect={() => setSelectedLine(line.number)}
+                      onJumpAi={() => {
+                        if (aiCoverage.firstExplained) scrollToLine(aiCoverage.firstExplained);
+                      }}
                     />
                   )}
                 />
@@ -319,20 +398,22 @@ export default function CodeExplorer() {
         </Reveal>
 
         {/* -------- painel de detalhe -------- */}
-        <Reveal from="right" delay={240} duration={800}>
-          <div className="depth-card sticky top-24 rounded-2xl border border-border bg-surface/60 p-4">
-            {activeFinding ? (
-              <FindingDetail finding={activeFinding} />
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-sm text-slate-400">
-                  Clique numa linha marcada para ver a análise.
-                </p>
-                <p className="mt-2 text-xs text-slate-600">
-                  O painel mostra a regra, o impacto e o comentário da IA.
-                </p>
-              </div>
-            )}
+        <Reveal from="right" delay={240} duration={800} className="lg:min-h-0">
+          <div className="depth-card flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface/60 p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {activeFinding ? (
+                <FindingDetail finding={activeFinding} />
+              ) : (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-slate-400">
+                    Clique numa linha marcada para ver a análise.
+                  </p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    O painel mostra a regra, o impacto e o comentário da IA.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </Reveal>
       </div>
@@ -346,15 +427,19 @@ function CodeRow({
   line,
   active,
   onSelect,
+  onJumpAi,
 }: {
   line: CodeLine;
   active: boolean;
   onSelect: () => void;
+  onJumpAi: () => void;
 }) {
   const style = line.severity ? SEVERITY_STYLE[line.severity] : null;
+  const hasAi = line.findings.some((f) => f.ai_comment);
 
   return (
     <div
+      id={`code-line-${line.number}`}
       onClick={onSelect}
       role="button"
       tabIndex={0}
@@ -364,18 +449,33 @@ function CodeRow({
           onSelect();
         }
       }}
+      title={line.findings[0]?.title}
       className={`flex h-[22px] cursor-pointer items-center font-mono text-[12px] leading-none transition-colors duration-150 ${
         style ? style.row : ''
       } ${active ? 'bg-primary/20' : 'hover:bg-white/[0.03]'}`}
       style={active ? { boxShadow: 'inset 2px 0 0 var(--accent-primary)' } : undefined}
     >
       {/* gutter */}
-      <span className="flex w-12 shrink-0 select-none items-center justify-end gap-1.5 pr-2 text-[10px] tabular-nums text-slate-600">
+      <span className="flex w-14 shrink-0 select-none items-center justify-end gap-1.5 pr-2 text-[10px] tabular-nums text-slate-600">
         {line.findings.length > 0 && (
           <span
             className={`h-1.5 w-1.5 rounded-full ${style?.dot ?? 'bg-slate-600'}`}
             aria-hidden="true"
           />
+        )}
+        {hasAi && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onJumpAi();
+            }}
+            title="Esta linha tem comentário da IA"
+            className="text-accent transition-transform duration-200 hover:scale-125"
+            aria-label={`Linha ${line.number} tem comentário da IA`}
+          >
+            ✦
+          </button>
         )}
         {line.number}
       </span>
@@ -438,17 +538,21 @@ function FindingDetail({ finding }: { finding: Issue }) {
         </div>
       )}
 
-      <div className="mt-5 border-t border-border pt-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+<div className="mt-5 border-t border-border pt-4">
+        <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          <span aria-hidden="true">✦</span>
           Comentário da IA
         </p>
         {finding.ai_comment ? (
-          <p className="mt-2 rounded-lg border border-primary/25 bg-primary/[0.07] p-3 text-xs leading-relaxed text-slate-200">
-            {finding.ai_comment}
-          </p>
+          <div
+            className="mt-2 rounded-lg border border-primary/30 bg-primary/[0.08] p-3"
+            style={{ animation: 'blurIn 320ms var(--ease-out)' }}
+          >
+            <p className="text-xs leading-relaxed text-slate-100">{finding.ai_comment}</p>
+          </div>
         ) : (
           <p className="mt-2 text-xs text-slate-500">
-            Ainda não comentado. Use o botão “Explicar com IA” no topo.
+            Esta linha ainda não foi comentada. Use o botão "Explicar com IA" no topo.
           </p>
         )}
       </div>

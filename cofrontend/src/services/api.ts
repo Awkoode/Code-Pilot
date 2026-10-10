@@ -14,6 +14,7 @@ import type {
   ModelCatalogResponse,
   Project,
   ScanResponse,
+  ServicePing,
   User,
 } from '../types';
 
@@ -22,6 +23,25 @@ const BASE_URL =
   (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 export const UNAUTHORIZED_EVENT = 'codepilot:unauthorized';
+
+export function apiBase(): string {
+  return BASE_URL;
+}
+
+/**
+ * Checagem crua do backend, sem passar pelo `request`.
+ *
+ * O botão de serviço precisa medir latência real e mostrar o HTTP status,
+ * e um erro 503 do /api/health ainda é uma resposta válida (o serviço
+ * respondeu), não um erro de transporte.
+ */
+export async function checkBackendHealth(): Promise<{ ok: boolean; status: number }> {
+  if (!BASE_URL) {
+    throw new Error('Backend não configurado para este ambiente.');
+  }
+  const res = await fetch(`${BASE_URL}/api/health`);
+  return { ok: res.ok, status: res.status };
+}
 
 export class ApiError extends Error {
   status: number;
@@ -181,6 +201,22 @@ export const api = {
     ),
 
   models: () => request<ModelCatalogResponse>('/api/models', {}, false),
+
+  pingAnalyzer: () =>
+    request<ServicePing>('/api/services/analyzer/health', {}, false),
+
+  probeAnalyzer: () =>
+    request<{ ok: boolean; latencyMs: number; healthScore?: number; totalFilesCount?: number }>(
+      '/api/services/analyzer/probe',
+      {},
+      false,
+    ),
+
+  servicesStatus: () =>
+    request<{
+      backend: { ok: boolean; uptimeSeconds: number };
+      analyzer: { ok: boolean; latencyMs: number; status?: number; error?: string };
+    }>('/api/services/status', {}, false),
 
   listIssues: (
     projectId: string,

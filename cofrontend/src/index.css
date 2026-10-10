@@ -1101,6 +1101,39 @@ body {
   box-shadow: 0 0 12px var(--accent-glow);
 }
 
+/* ---------- Botão de serviço: clique -> carregando -> confirmado ---------- */
+@keyframes pingSlow {
+  0%   { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes confirmSweep {
+  from { left: -50%; }
+  to   { left: 110%; }
+}
+
+@keyframes drawCheck {
+  from { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes okPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes okHalo {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 16px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes ringExpand {
+  from { transform: scale(1); opacity: 0.9; }
+  to   { transform: scale(1.09); opacity: 0; }
+}
+
 /* ---------- Layout helpers ---------- */
 .scene-root {
   position: fixed;
@@ -1184,6 +1217,15 @@ body {
 
   .bar-grow,
   .bar-grow-x {
+    animation: none !important;
+  }
+
+  /* Botão de serviço: sem movimento, só a troca de cor de estado. */
+  .service-scan,
+  .service-confirm,
+  .service-halo,
+  .service-ring,
+  .service-check {
     animation: none !important;
   }
 }

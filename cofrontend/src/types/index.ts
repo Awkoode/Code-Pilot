@@ -185,6 +185,14 @@ export interface ExplainResponse {
   model: string;
 }
 
+export interface ServicePing {
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  detail?: unknown;
+  error?: string;
+}
+
 export interface ScanResponse {
   message: string;
   summary: Omit<ScanResult, 'relevantFiles'>;
